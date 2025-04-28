@@ -89,6 +89,14 @@ const THEMES = {
       skylineThemeName: 'custom',
     },
   },
+  garr: {
+    themeFile: 'theme-garr.js',
+    lessVariablesName: 'styles/variables-garr',
+    globalVariables: {
+      menuTheme: 'light',
+      skylineThemeName: 'garr',
+    },
+  },
 };
 
 const getThemeConfig = () => {

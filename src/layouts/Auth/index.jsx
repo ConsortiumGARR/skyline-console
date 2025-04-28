@@ -37,12 +37,6 @@ export class AuthLayout extends Component {
           className={styles['login-full-image']}
           src={loginFullImage}
         />
-        <div className={styles['full-image-front']} />
-        <img
-          src={loginRightLogo}
-          alt=""
-          className={styles['login-right-logo']}
-        />
       </div>
     );
   }

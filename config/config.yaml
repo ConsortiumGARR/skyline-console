@@ -1,14 +1,15 @@
 host: 0.0.0.0
 port: 8088
-server: http://localhost
+#server: https://dashboard.greenfield.int.cloud.garr.it
+server: https://localhost
 
-theme: default
+theme: garr
 
 globalVariables:
   defaultLanguage: en
   supportLanguages: # use value in i18n.js
     - en
-    - zh-hans
-    - ko-kr
-    - tr-tr
-    - ru
+      #- zh-hans
+      #- ko-kr
+      #- tr-tr
+      #- ru
