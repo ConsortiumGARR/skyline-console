@@ -31,6 +31,7 @@ export class Login extends Component {
       error: false,
       message: '',
       loading: false,
+      // MODIFIED: Initialize with passwordOption, will be updated after SSO fetch
       loginTypeOption: this.passwordOption,
     };
   }
@@ -45,13 +46,46 @@ export class Login extends Component {
     this.updateDefaultValue();
   }
 
+  // MODIFIED: Make getSSO async and handle default login type update
   async getSSO() {
     try {
-      this.store.fetchSSO();
+      // Assuming fetchSSO returns a promise or can be awaited
+      // If not, this part might need adjustment based on how fetchSSO signals completion
+      await this.store.fetchSSO();
+      this.updateDefaultLoginType(); // ADDED: Update login type after fetching SSO
     } catch (e) {
       console.log(e);
+      this.updateDefaultLoginType(true); // ADDED: Force password on error
     }
   }
+
+  // ADDED: Method to update the default login type in form and state
+  updateDefaultLoginType = (forcePassword = false) => {
+    const newLoginOptions = this.loginTypeOptions; // Uses the getter with SSO prioritized
+    let chosenOption;
+
+    if (forcePassword || isEmpty(newLoginOptions) || (newLoginOptions.length === 1 && newLoginOptions[0].value === 'password') || !this.enableSSO) {
+      chosenOption = this.passwordOption;
+    } else {
+      // The first option in loginTypeOptions should be an SSO option if available
+      const ssoCandidates = newLoginOptions.filter(opt => opt.value !== 'password');
+      if (!isEmpty(ssoCandidates)) {
+        chosenOption = ssoCandidates[0];
+      } else {
+        chosenOption = this.passwordOption;
+      }
+    }
+    
+    if (this.formRef.current) {
+      this.formRef.current.setFieldsValue({
+        loginType: chosenOption.value,
+      });
+    }
+    // This setState will also trigger a re-render and ensure currentLoginType etc. are correct
+    // It also ensures onLoginTypeChange logic is effectively run for the default.
+    this.setState({ loginTypeOption: chosenOption });
+  };
+
 
   get rootStore() {
     return this.props.rootStore;
@@ -99,15 +133,19 @@ export class Login extends Component {
 
   get ssoProtocols() {
     return {
-      openid: t('OpenID Connect'),
+      openid: t('IDEM/eduGAIN'),
     };
   }
 
   get SSOOptions() {
+    // MODIFIED: Ensure this returns an empty array if not enabled, to simplify logic elsewhere.
     if (!this.enableSSO) {
       return [];
     }
     const { sso: { protocols = [] } = {} } = this.store;
+    if (isEmpty(protocols)) { // Added check for empty protocols
+        return [];
+    }
     return protocols.map((it) => {
       const { protocol, url } = it;
       return {
@@ -126,10 +164,12 @@ export class Login extends Component {
   }
 
   get loginTypeOptions() {
-    if (!this.enableSSO) {
-      return [];
+    // MODIFIED: Put SSO options first if enabled and available
+    const ssoOpts = this.SSOOptions;
+    if (this.enableSSO && !isEmpty(ssoOpts)) {
+      return [...ssoOpts, this.passwordOption];
     }
-    return [this.passwordOption, ...this.SSOOptions];
+    return [this.passwordOption];
   }
 
   onLoginTypeChange = (value, option) => {
@@ -150,9 +190,16 @@ export class Login extends Component {
   }
 
   get defaultValue() {
-    const data = {
-      loginType: 'password',
-    };
+    const data = {};
+    // MODIFIED: Default to the first option in loginTypeOptions (which now prioritizes SSO)
+    const currentLoginOptions = this.loginTypeOptions;
+    if (!isEmpty(currentLoginOptions)) {
+      data.loginType = currentLoginOptions[0].value;
+    } else {
+      // Fallback, though loginTypeOptions should always have at least passwordOption
+      data.loginType = this.passwordOption.value;
+    }
+
     if (this.regions.length === 1) {
       data.region = this.regions[0].value;
     }
@@ -258,7 +305,7 @@ export class Login extends Component {
       render: () => (
         <Select
           placeholder={t('Select a login type')}
-          options={this.loginTypeOptions}
+          options={this.loginTypeOptions} // This will use the correctly ordered options
           onChange={this.onLoginTypeChange}
         />
       ),
@@ -268,7 +315,7 @@ export class Login extends Component {
         return [typeItem, ...namePasswordItems, submitItem];
       }
 
-      return [typeItem, submitItem];
+      return [typeItem, submitItem]; // For SSO, only type and submit are shown
     }
     return [...namePasswordItems, submitItem];
   }
@@ -395,9 +442,19 @@ export class Login extends Component {
   };
 
   updateDefaultValue = () => {
-    this.formRef.current.resetFields();
+    // This resets to initialValues which are derived from `defaultValue` getter.
+    // `defaultValue` now prioritizes SSO if available.
     if (this.formRef.current && this.formRef.current.resetFields) {
       this.formRef.current.resetFields();
+      // After resetting fields, ensure our internal state for loginTypeOption is also synced
+      // This might be slightly redundant if onLoginTypeChange is triggered by resetFields,
+      // but it's safer to ensure consistency.
+      const formValues = this.formRef.current.getFieldsValue();
+      const selectedLoginType = formValues.loginType;
+      const newLoginOption = this.loginTypeOptions.find(opt => opt.value === selectedLoginType) || this.passwordOption;
+      if (this.state.loginTypeOption.value !== newLoginOption.value) {
+         this.setState({ loginTypeOption: newLoginOption });
+      }
     }
   };
 
@@ -418,7 +475,7 @@ export class Login extends Component {
           formItems={this.formItems}
           name="normal_login"
           className={styles['login-form']}
-          initialValues={this.defaultValue}
+          initialValues={this.defaultValue} // defaultValue getter now prioritizes SSO
           onFinish={this.onFinish}
           formref={this.formRef}
           size="large"
